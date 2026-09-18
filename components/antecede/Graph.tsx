@@ -9,6 +9,10 @@ const NODE_SHAPES: Record<string, string> = {
   alliance: "hexagon",
   resource: "diamond",
   program: "star",
+  etf: "round-rectangle",
+  bond: "triangle",
+  currency: "tag",
+  crypto: "octagon",
 };
 const NODE_COLORS: Record<string, string> = {
   company: "#5a8de8",
@@ -16,6 +20,10 @@ const NODE_COLORS: Record<string, string> = {
   alliance: "#9c6ade",
   resource: "#FFA726",
   program: "#9396a1",
+  etf: "#4fc3f7",
+  bond: "#c9a66b",
+  currency: "#26c6da",
+  crypto: "#f06292",
 };
 const EDGE_COLORS: Record<string, string> = {
   conflict: "#EF5350",

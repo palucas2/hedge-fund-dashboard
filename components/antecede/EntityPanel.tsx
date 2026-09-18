@@ -13,6 +13,10 @@ const TYPE_LABELS: Record<string, string> = {
   alliance: "Alliance",
   resource: "Resource",
   program: "Program",
+  etf: "ETF",
+  bond: "Bond",
+  currency: "Currency",
+  crypto: "Crypto",
 };
 
 export default function EntityPanel({
