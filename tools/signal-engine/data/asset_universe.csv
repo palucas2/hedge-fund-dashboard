@@ -1,0 +1,115 @@
+symbol,name,asset_class,keywords
+AAPL,Apple,stock,apple|iphone
+MSFT,Microsoft,stock,microsoft|azure
+NVDA,NVIDIA,stock,nvidia|gpu|semiconductor|chips
+GOOGL,Alphabet,stock,google|alphabet
+AMZN,Amazon,stock,amazon
+META,Meta Platforms,stock,meta|facebook|instagram
+TSLA,Tesla,stock,tesla|elon musk|ev maker
+XOM,Exxon Mobil,stock,exxon|oil major
+CVX,Chevron,stock,chevron|oil major
+JPM,JPMorgan Chase,stock,jpmorgan|jp morgan
+GS,Goldman Sachs,stock,goldman sachs
+BAC,Bank of America,stock,bank of america
+LMT,Lockheed Martin,stock,lockheed|defense contractor|missile
+RTX,RTX Corporation,stock,raytheon|rtx|patriot missile|defense contractor
+NOC,Northrop Grumman,stock,northrop|defense contractor
+BA,Boeing,stock,boeing|737|787
+CAT,Caterpillar,stock,caterpillar|heavy machinery
+DE,Deere,stock,john deere|agriculture equipment
+PFE,Pfizer,stock,pfizer|vaccine
+JNJ,Johnson & Johnson,stock,johnson & johnson
+UNH,UnitedHealth,stock,unitedhealth|health insurer
+WMT,Walmart,stock,walmart|retailer
+COST,Costco,stock,costco
+KO,Coca-Cola,stock,coca-cola
+PEP,PepsiCo,stock,pepsico
+DIS,Disney,stock,disney
+NFLX,Netflix,stock,netflix
+INTC,Intel,stock,intel|semiconductor|chips
+AMD,AMD,stock,amd|semiconductor|chips
+TSM,Taiwan Semiconductor,stock,tsmc|taiwan semiconductor|taiwan strait|chips
+SHEL,Shell,stock,shell|oil major
+BP,BP,stock,bp plc|oil major
+TM,Toyota,stock,toyota
+SONY,Sony,stock,sony
+BABA,Alibaba,stock,alibaba|china tech
+NKE,Nike,stock,nike
+MCD,McDonald's,stock,mcdonald's
+V,Visa,stock,visa
+MA,Mastercard,stock,mastercard
+CRM,Salesforce,stock,salesforce
+ORCL,Oracle,stock,oracle
+IBM,IBM,stock,ibm
+CSCO,Cisco,stock,cisco
+QCOM,Qualcomm,stock,qualcomm|semiconductor|chips
+TXN,Texas Instruments,stock,texas instruments|semiconductor
+HON,Honeywell,stock,honeywell
+GE,General Electric,stock,general electric
+UPS,United Parcel Service,stock,ups|shipping
+FDX,FedEx,stock,fedex|shipping
+SOXX,iShares Semiconductor ETF,etf,semiconductor|chips|taiwan strait
+SPY,SPDR S&P 500 ETF,etf,s&p 500|sp500|us stocks
+QQQ,Invesco QQQ,etf,nasdaq 100|tech stocks
+DIA,SPDR Dow Jones ETF,etf,dow jones
+IWM,iShares Russell 2000,etf,russell 2000|small caps
+XLE,Energy Select Sector SPDR,etf,energy sector|oil stocks
+XLF,Financial Select Sector SPDR,etf,financial sector|bank stocks
+XLK,Technology Select Sector SPDR,etf,tech sector
+XLV,Health Care Select Sector SPDR,etf,healthcare sector
+XLI,Industrial Select Sector SPDR,etf,industrial sector
+XLB,Materials Select Sector SPDR,etf,materials sector
+XLU,Utilities Select Sector SPDR,etf,utilities sector
+XLY,Consumer Discretionary SPDR,etf,consumer discretionary
+XLP,Consumer Staples SPDR,etf,consumer staples
+XLC,Communication Services SPDR,etf,communication services
+XLRE,Real Estate Select Sector SPDR,etf,real estate sector|reit
+GLD,SPDR Gold Shares,etf,gold|safe haven|precious metal
+SLV,iShares Silver Trust,etf,silver|precious metal
+USO,United States Oil Fund,etf,oil|crude oil
+UNG,United States Natural Gas Fund,etf,natural gas
+DBC,Invesco DB Commodity Index,etf,commodities broad
+TLT,iShares 20+ Year Treasury Bond,etf,long bond|treasury|yield|rate hike|rate cut
+IEF,iShares 7-10 Year Treasury Bond,etf,treasury note|yield
+SHY,iShares 1-3 Year Treasury Bond,etf,short term treasury|bills
+HYG,iShares High Yield Corporate Bond,etf,high yield credit|junk bond
+LQD,iShares Investment Grade Corporate Bond,etf,investment grade credit
+EEM,iShares MSCI Emerging Markets,etf,emerging markets
+EFA,iShares MSCI EAFE,etf,developed markets ex-us
+VXX,iPath VIX Short-Term Futures,etf,volatility|vix|fear index
+EWZ,iShares MSCI Brazil,etf,brazil
+CIBR,First Trust Cybersecurity,etf,cybersecurity
+ITA,iShares US Aerospace & Defense,etf,defense sector|aerospace|missile
+HACK,ETFMG Prime Cyber Security,etf,cybersecurity
+XOP,SPDR S&P Oil & Gas Exploration,etf,oil exploration
+EMGF,iShares Emerging Markets Factor,etf,emerging markets
+ARKK,ARK Innovation ETF,etf,disruptive tech
+KWEB,KraneShares CSI China Internet,etf,china internet|china tech
+FXI,iShares China Large-Cap,etf,china stocks
+WTI,WTI Crude Oil,commodity,wti crude|crude oil|opec|strait of hormuz
+BRENT,Brent Crude Oil,commodity,brent crude|opec|north sea oil
+NATURAL_GAS,Natural Gas,commodity,natural gas|lng|gas pipeline
+COPPER,Copper,commodity,copper|industrial metal
+ALUMINUM,Aluminum,commodity,aluminum|aluminium
+WHEAT,Wheat,commodity,wheat|grain export|black sea grain
+CORN,Corn,commodity,corn|grain export
+COTTON,Cotton,commodity,cotton
+SUGAR,Sugar,commodity,sugar
+COFFEE,Coffee,commodity,coffee
+US3M,3-Month Treasury Bill,bond,t-bill|3 month treasury|short term rate
+US2Y,2-Year Treasury Note,bond,2 year treasury|yield curve
+US5Y,5-Year Treasury Note,bond,5 year treasury
+US7Y,7-Year Treasury Note,bond,7 year treasury
+US10Y,10-Year Treasury Note,bond,10 year treasury|benchmark yield
+US30Y,30-Year Treasury Bond,bond,30 year treasury|long bond
+EURUSD,Euro / US Dollar,fx,euro|ecb|eurozone
+USDJPY,US Dollar / Japanese Yen,fx,yen|boj|bank of japan
+GBPUSD,British Pound / US Dollar,fx,pound|sterling|boe|bank of england
+USDCNY,US Dollar / Chinese Yuan,fx,yuan|renminbi|pboc
+USDCHF,US Dollar / Swiss Franc,fx,swiss franc|safe haven currency
+AUDUSD,Australian Dollar / US Dollar,fx,aussie dollar|rba
+USDCAD,US Dollar / Canadian Dollar,fx,loonie|canadian dollar
+BTC,Bitcoin,crypto,bitcoin|btc
+ETH,Ethereum,crypto,ethereum|eth
+SOL,Solana,crypto,solana
+XRP,XRP,crypto,xrp|ripple

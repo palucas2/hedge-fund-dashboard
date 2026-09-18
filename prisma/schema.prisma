@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  viewer
+}
+
+enum TradeStatus {
+  open
+  closed
+}
+
+enum WheelStatus {
+  open
+  closed
+}
+
+enum AlertOutcome {
+  exploited
+  ignored
+  missed
+  pending
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  password  String
+  role      Role     @default(viewer)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  trades       Trade[]
+  positions    Position[]
+
+  @@map("users")
+}
+
+/// Portefeuille ETF — Module 2 Section A
+model Position {
+  id         Int      @id @default(autoincrement())
+  userId     Int?     @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id])
+  ticker     String
+  entryPrice Decimal  @map("entry_price") @db.Decimal(18, 4)
+  entryDate  DateTime @map("entry_date")
+  quantity   Decimal  @db.Decimal(18, 8)
+  sl         Decimal? @db.Decimal(18, 4)
+  tp1        Decimal? @db.Decimal(18, 4)
+  tp2        Decimal? @db.Decimal(18, 4)
+  status     String   @default("open")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("positions")
+}
+
+/// Trade Journal — Module 2 + Module 8
+model Trade {
+  id         Int         @id @default(autoincrement())
+  userId     Int?        @map("user_id")
+  user       User?       @relation(fields: [userId], references: [id])
+  asset      String
+  strategy   String?
+  direction  String
+  entryPrice Decimal?    @map("entry_price") @db.Decimal(18, 4)
+  entryDate  DateTime?   @map("entry_date")
+  exitPrice  Decimal?    @map("exit_price") @db.Decimal(18, 4)
+  exitDate   DateTime?   @map("exit_date")
+  sizingUsd  Decimal?    @map("sizing_usd") @db.Decimal(18, 2)
+  sizingPct  Decimal?    @map("sizing_pct") @db.Decimal(8, 4)
+  sl         Decimal?    @db.Decimal(18, 4)
+  tp1        Decimal?    @db.Decimal(18, 4)
+  tp2        Decimal?    @db.Decimal(18, 4)
+  thesis     String?
+  lesson     String?
+  pnlUsd     Decimal?    @map("pnl_usd") @db.Decimal(18, 2)
+  pnlPct     Decimal?    @map("pnl_pct") @db.Decimal(8, 4)
+  tags       String?
+  status     TradeStatus @default(open)
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@map("trades")
+}
+
+/// Wheel BTC Tracker — Module 4
+model WheelCycle {
+  id        Int         @id @default(autoincrement())
+  phase     Int
+  strike    Decimal?    @db.Decimal(18, 2)
+  premium   Decimal?    @db.Decimal(18, 2)
+  expiry    DateTime?   @db.Date
+  sl        Decimal?    @db.Decimal(18, 2)
+  result    Decimal?    @db.Decimal(18, 2)
+  scenario  String?
+  pnl       Decimal?    @db.Decimal(18, 2)
+  status    WheelStatus @default(open)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@map("wheel_cycles")
+}
+
+/// Market Recap Auto-Généré — Module 6
+model MarketRecap {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @db.Date
+  content     String
+  generatedAt DateTime @default(now()) @map("generated_at")
+  modelUsed   String?  @map("model_used")
+  pinned      Boolean  @default(false)
+
+  @@map("market_recaps")
+}
+
+/// Antecede Graph — Module 7 (Postgres à la place de Neo4j, cf. décision — petit graphe ~70 nœuds/arêtes)
+model AntecedeNode {
+  id          String   @id
+  name        String
+  type        String // company | country | alliance | resource | program
+  description String?
+  ticker      String? // pour Company — fondamentaux via Alpha Vantage
+  chokepoint  Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("antecede_nodes")
+}
+
+model AntecedeEdge {
+  id                 Int      @id @default(autoincrement())
+  sourceId           String   @map("source_id")
+  targetId           String   @map("target_id")
+  edgeType           String   @map("edge_type")
+  edgeCategory       String   @map("edge_category") // conflict | trade | dependency | alliance
+  weightFinancialPct Int?     @map("weight_financial_pct")
+  direction          String?
+  status             String?
+  confidence         String?
+  chokepointType     String?  @map("chokepoint_type")
+  note               String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("antecede_edges")
+}
+
+/// Volatility & Event Tracker — Module 9
+model Alert {
+  id              Int          @id @default(autoincrement())
+  type            String
+  asset           String?
+  title           String
+  description     String?
+  severity        String?
+  relevanceScore  Int?         @map("relevance_score")
+  outcome         AlertOutcome @default(pending)
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@map("alerts")
+}

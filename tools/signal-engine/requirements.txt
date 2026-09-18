@@ -1,0 +1,7 @@
+requests>=2.31
+python-dotenv>=1.0
+pandas>=2.0
+numpy>=1.26
+scipy>=1.11
+hmmlearn>=0.3
+ruptures>=1.1
