@@ -35,9 +35,33 @@ def _causal_vol_series(price_df: pd.DataFrame, lookback: int = 20) -> tuple[pd.S
     return daily_vol, daily_vol * np.sqrt(252)
 
 
-def backtest_sized_full_stack(price_df: pd.DataFrame, fees: float = DEFAULT_FEES, refit_every: int = 21, min_obs: int = 80) -> dict:
+def backtest_sized_full_stack(
+    price_df: pd.DataFrame,
+    fees: float = DEFAULT_FEES,
+    refit_every: int = 21,
+    min_obs: int = 80,
+    target_annual_vol: float | None = None,
+    max_position_pct: float | None = None,
+    stop_multiplier: float | None = None,
+    target_multiplier: float | None = None,
+) -> dict:
+    """Overrides (target_annual_vol/max_position_pct/stop_multiplier/target_multiplier)
+    default to config.py's values via sizing.py's own function defaults when left
+    None — pass them explicitly to sweep parameters, e.g. from sizing_sweep.py."""
     signal = full_stack_bot(price_df, refit_every=refit_every, min_obs=min_obs).shift(1).fillna(0.0)
     daily_vol_s, annual_vol_s = _causal_vol_series(price_df)
+
+    size_kwargs = {}
+    if target_annual_vol is not None:
+        size_kwargs["target_annual_vol"] = target_annual_vol
+    if max_position_pct is not None:
+        size_kwargs["max_position_pct"] = max_position_pct
+
+    stop_kwargs = {}
+    if stop_multiplier is not None:
+        stop_kwargs["stop_multiplier"] = stop_multiplier
+    if target_multiplier is not None:
+        stop_kwargs["target_multiplier"] = target_multiplier
 
     n = len(price_df)
     close = price_df["close"].values
@@ -80,12 +104,12 @@ def backtest_sized_full_stack(price_df: pd.DataFrame, fees: float = DEFAULT_FEES
         if position == 0 and signal.iloc[i] != 0:
             av, dv = annual_vol_s.iloc[i], daily_vol_s.iloc[i]
             if pd.notna(av) and pd.notna(dv) and av > 0:
-                new_size = vol_targeted_size_pct(av)
+                new_size = vol_targeted_size_pct(av, **size_kwargs)
                 if new_size > 0:
                     position = signal.iloc[i]
                     size_pct = new_size
                     entry_price = close[i]
-                    stop_dist, target_dist = stop_and_target_distance(dv)
+                    stop_dist, target_dist = stop_and_target_distance(dv, **stop_kwargs)
                     if position == 1:
                         stop_loss = entry_price * (1 - stop_dist)
                         take_profit = entry_price * (1 + target_dist)
