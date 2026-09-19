@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 import config
+from src.idea_generator.sizing import stop_and_target_distance, vol_targeted_size_pct
 from src.models.schemas import TradeIdea, TradeSpec
 
 
@@ -57,11 +58,9 @@ def build_trade_spec(idea: TradeIdea, price_df: pd.DataFrame) -> TradeSpec:
     take_profit = None
 
     if action == "take":
-        vol_scale = min(config.TARGET_ANNUAL_VOL / annual_vol, 1.0)
-        size_pct = round(config.MAX_POSITION_PCT * vol_scale, 4)
+        size_pct = round(vol_targeted_size_pct(annual_vol), 4)
+        stop_distance, target_distance = stop_and_target_distance(daily_vol)
 
-        stop_distance = config.STOP_LOSS_VOL_MULTIPLIER * daily_vol
-        target_distance = config.TAKE_PROFIT_VOL_MULTIPLIER * daily_vol
         if idea.direction == "long":
             stop_loss = round(entry_price * (1 - stop_distance), 4)
             take_profit = round(entry_price * (1 + target_distance), 4)

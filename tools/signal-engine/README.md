@@ -73,7 +73,15 @@ A `TradeIdea` (direction + conviction) isn't a trade — this turns it into a `T
 - **Sizing**: `MAX_POSITION_PCT` (default 10% of capital) scaled down by `TARGET_ANNUAL_VOL / realized_annual_vol`, never scaled up past the cap. This specific mechanism — not the exact numbers — is the one finding from the tournament (`tournament/portfolio_bots.py`) solid enough to build on: it roughly halved max drawdown and lifted Sharpe in a real multi-asset backtest.
 - **Stop-loss/take-profit**: a multiple of recent daily realized vol (`STOP_LOSS_VOL_MULTIPLIER`=2.0, `TAKE_PROFIT_VOL_MULTIPLIER`=3.0, ~1.5:1 reward:risk), not a fixed percentage — a 5% stop means something very different on TLT than on BTC-USD.
 
-All five constants are env-overridable (see `config.py`) and are documented starting defaults, not backtested/tuned outputs — nothing here has been validated the way the tournament's bots were. Don't size real capital off this without testing the sizing/stop rules themselves first (a natural next step: backtest `trade_builder`'s exact sizing formula the same way `tournament/` backtested the bots).
+All five constants are env-overridable (see `config.py`) and are documented starting defaults, not backtested/tuned outputs — nothing here has been validated the way the tournament's bots were.
+
+**Validated, partially** — `tournament/sized_backtest.py` backtests the *actual* production formula (imports `src/idea_generator/sizing.py` directly, not a reimplementation) on top of `full_stack`'s signal, with real OHLC-based stop/target triggering instead of just signal-based rebalancing:
+
+```bash
+python examples/run_sized_backtest.py                    # SPY, AAPL, GLD, TLT, BTC-USD, 5y
+```
+
+Real run, SPY/TLT, 5y: max drawdown drops sharply with real sizing/stops (SPY 28%→2%, TLT 37%→3%) — expected, since `MAX_POSITION_PCT` caps exposure at 10% of capital vs. the raw bots' fully-invested 100%. That's not really an apples-to-apples return comparison (10% exposure obviously returns less than 100% exposure) so much as a demonstration that the capital-preservation discipline works as designed — this is what one position looks like sized as a slice of a diversified book, not a full-capital bet on one asset. One thing worth a closer look: stop/target exits still fire often (~160 trades over 5y) — `STOP_LOSS_VOL_MULTIPLIER=2.0` may be tight relative to normal daily noise; hasn't been swept the way `tournament/param_sweep.py` swept SMA/RSI.
 
 ### Writing ideas into the dashboard (`src/output/alerts_writer.py`)
 
