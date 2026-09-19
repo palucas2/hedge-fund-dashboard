@@ -139,11 +139,24 @@ Three more angles, each independently tested and each an honest result rather th
 - **`tournament/portfolio_bots.py`** — vol-targeted position sizing (scale each bot's call by target-vol/realized-vol, so it sizes down in chop and up when calm) combined into an equal-weight multi-asset portfolio. On SPY/TLT/GLD/BTC-USD/AAPL over 3y, vol-targeting roughly halved max drawdown and meaningfully lifted Sharpe for both `full_stack` and `sma_crossover` — a real risk-adjusted improvement, though buy-and-hold still won on raw return in this bull-market window. Run: `python examples/run_portfolio_backtest.py`.
 - **`tournament/vol_regime_bot.py`** — forcing a bot flat during high-realized-vol stretches (75th percentile threshold), tested against plain `full_stack` on SPY/AAPL/TLT/BTC-USD. **Hurt in 3 of 4 cases** — high-vol periods often contain the real trending moves a regime bot is trying to catch, not just chop, so filtering them out cut both return and (on BTC-USD) actually raised max drawdown by cutting a recovery short. Only helped on TLT, the most range-bound of the four. Not a clean win; don't treat it as validated. Run: `python examples/run_vol_regime_test.py`.
 
+## Deployment
+
+```bash
+docker build -t signal-engine .
+docker run --env-file .env signal-engine                          # runs run_daemon.py, default 15min interval
+docker run --env-file .env signal-engine python examples/run_pipeline.py --news-limit 15 --write-alerts  # one-off
+```
+
+`Dockerfile` installs only `requirements.txt` (not `requirements-tournament.txt` — vectorbt/numba/llvmlite are a heavy chain the daemon doesn't need; run the tournament locally, not in the deployed container). API keys and `DATABASE_URL` are supplied at runtime (`--env-file`, or the host platform's own env var config — Render/Railway/Fly.io all support this), never baked into the image.
+
+**Not build-tested** — this dev sandbox has no `docker` binary, so the image has been reviewed but never actually run through `docker build`. Verify it builds before relying on it; the most likely failure mode is a missing prebuilt wheel for `hmmlearn`/`scipy` on whatever platform you build for, which `python:3.11-slim` doesn't ship a compiler to work around.
+
 ## Known limitations
 
 - **GEX, vol skew, VIX term structure, dark pool, OFI, VWAP** need Polygon data tiers (options add-on, indices add-on, quotes) not included in the free plan. They degrade to clearly-labeled proxies (`is_mocked=True`) rather than fail — swap in a real vendor (ORATS, CBOE DataShop, FINRA ADF, Databento) by extending `market_data_client.py` and each signal module keeps working unchanged.
 - **GPR** uses a news-density proxy, not the official Caldara-Iacoviello series.
 - **Asset universe** (`data/asset_universe.csv`) is a ~120-symbol seed list, not an exhaustive database — extend it as needed.
+- **The Docker image is unverified** (see Deployment above) — reviewed, not built.
 
 ## Structure
 
