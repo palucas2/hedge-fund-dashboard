@@ -1,6 +1,6 @@
 # Signal Engine
 
-News-to-trade-idea pipeline for the [Hedge Fund Dashboard](../HedgeFund_Dashboard_Spec.docx) project. Standalone Python service, designed to be called from the Next.js backend later (Module 5 Regime Detector, Module 6 Market Recap, Module 9 Volatility & Event Tracker).
+News-to-trade-idea pipeline for the Hedge Fund Dashboard project (see `../../README.md` at the project root; spec doc kept outside this repo). Standalone Python service, designed to be called from the Next.js backend later (Module 5 Regime Detector, Module 6 Market Recap, Module 9 Volatility & Event Tracker).
 
 ```
 news in -> impact score (0-100) -> affected assets -> quant signal bank -> ranked trade ideas
@@ -64,6 +64,30 @@ Without `--fast`, the client throttles Polygon calls to stay under the free-tier
 
 If Alpha Vantage's daily quota is already spent, `NEWS_SENTIMENT` and price lookups return empty (not an error) — the pipeline still runs, but since NewsAPI events carry no sentiment/ticker tags, they can't clear the impact-score threshold alone (their score maxes out around 20/100 on keywords only, vs. the 25 threshold). Ideas resume once AV's quota resets, or once you're on a paid AV tier.
 
+## Strategy tournament (`tournament/`)
+
+Backtests every bot against every asset and ranks them — turns the signal bank into daily long/flat/short position series and runs them through [vectorbt](https://github.com/polakowo/vectorbt) (Apache 2.0 + Commons Clause — free for internal use, just can't resell the library itself). Historical data comes from Yahoo Finance (`yfinance`), not Alpha Vantage — pulling years of daily history across several assets would blow through AV's 25 req/day free cap in one run.
+
+```bash
+pip install -r requirements-tournament.txt
+python examples/run_tournament.py                                    # SPY, AAPL, GLD, TLT, BTC-USD, 5y
+python examples/run_tournament.py --symbols SPY QQQ --period 10y
+```
+
+Bots (`tournament/bots.py`):
+
+| Bot | Logic |
+|---|---|
+| `buy_and_hold` | baseline — always long |
+| `hmm_regime` | HMM regime call, refit every 21 trading days on an expanding window |
+| `bai_perron` | post-breakpoint slope direction, same refit cadence |
+| `kalman_trend` | sign of the Kalman filter's trend term — causal by construction, computed once over the full series |
+| `full_stack` | majority vote of the three above, same refit cadence |
+
+Positions are shifted one bar forward before backtesting (a signal from day t's close can't be traded until day t+1 — no lookahead). HMM/Bai-Perron refit periodically rather than daily; refitting either model on every single day over 5 years per asset per bot isn't worth the compute for what's the same regime call on all but a handful of days.
+
+Real run, 5 assets x 5 bots, 5-year daily history (Sep 2026): buy-and-hold won on Sharpe on SPY/AAPL/GLD/BTC — all four were in a strong multi-year uptrend, where regime/trend bots mostly add whipsaw. The interesting result is TLT (bonds, in a multi-year *downtrend* over the same window): buy-and-hold scored -0.58 Sharpe, and every active bot beat it (best: `bai_perron` at +0.08) — the one asset where regime detection had an actual regime to detect. Small sample (one non-overlapping 5y window per asset), reran to check robustness before trusting the numbers for sizing.
+
 ## Known limitations
 
 - **GEX, vol skew, VIX term structure, dark pool, OFI, VWAP** need Polygon data tiers (options add-on, indices add-on, quotes) not included in the free plan. They degrade to clearly-labeled proxies (`is_mocked=True`) rather than fail — swap in a real vendor (ORATS, CBOE DataShop, FINRA ADF, Databento) by extending `market_data_client.py` and each signal module keeps working unchanged.
@@ -84,6 +108,9 @@ signal-engine/
 │   ├── idea_generator/synthesizer.py
 │   └── pipeline.py               # orchestrates the full flow
 ├── data/asset_universe.csv
-├── examples/run_pipeline.py      # CLI entry point
+├── tournament/                    # backtest tournament (bots.py, engine.py, data_loader.py)
+├── examples/
+│   ├── run_pipeline.py            # CLI entry point
+│   └── run_tournament.py
 └── tests/test_smoke.py
 ```

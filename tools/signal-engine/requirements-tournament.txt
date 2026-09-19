@@ -1,0 +1,4 @@
+-r requirements.txt
+vectorbt==0.28.2
+plotly<6
+yfinance>=1.2.0
