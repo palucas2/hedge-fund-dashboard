@@ -20,8 +20,13 @@ the paid SIP feed, same tier boundary Polygon has). dark_pool.py specifically
 needs trf_id (Trade Reporting Facility tagging) to detect genuine off-exchange
 dark-pool prints, which IEX-only data doesn't carry — VWAP and OFI benefit
 from this client, dark pool detection still falls back to its proxy even with
-a free Alpaca key. Written from documented API shape, not verified against a
-live account — there's no key available in this environment to test with.
+a free Alpaca key.
+
+Verified live against a real free account: bars/quotes/trades all return real
+data. One thing the docs don't make obvious — free accounts must pass
+`feed=iex` explicitly, or every endpoint 403s ("subscription does not permit
+querying recent SIP data"); Alpaca defaults to the paid SIP feed rather than
+falling back to IEX automatically. Found by testing, not by reading.
 """
 
 from __future__ import annotations
@@ -47,6 +52,12 @@ def _get(path: str, params: dict) -> dict | None:
     headers = _headers()
     if headers is None:
         return None
+    # Free accounts are IEX-only — Alpaca defaults to the paid SIP feed if
+    # `feed` isn't specified, which 403s ("subscription does not permit
+    # querying recent SIP data") rather than falling back automatically.
+    # Found by testing live against a real free account, not documented
+    # clearly enough to have guessed right without one.
+    params = {**params, "feed": "iex"}
     try:
         resp = requests.get(f"{ALPACA_DATA_BASE_URL}{path}", headers=headers, params=params, timeout=20)
         if resp.status_code in (401, 403, 429):
