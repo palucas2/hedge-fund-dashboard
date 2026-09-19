@@ -15,7 +15,7 @@ import pandas as pd
 from src.entity_resolution.asset_mapper import map_news_to_assets
 from src.idea_generator.synthesizer import synthesize
 from src.idea_generator.trade_builder import build_trade_spec
-from src.ingestion import market_data_client, news_client, options_data
+from src.ingestion import alpaca_client, market_data_client, news_client, options_data
 from src.models.schemas import AssetClass, AssetHit, NewsEvent, TradeSpec
 from src.scoring.impact_scorer import score_news
 from src.signals import bai_perron, dark_pool, gex, hmm_regime, kalman_filter, ofi, vix_term_structure, vol_skew, vrp, vwap
@@ -89,6 +89,20 @@ def run_signals_for_asset(asset: AssetHit, price_df: pd.DataFrame, use_polygon: 
         quotes_df = pd.DataFrame()
         trades_df = pd.DataFrame()
         options_df = pd.DataFrame()
+
+    if intraday_df.empty or quotes_df.empty or trades_df.empty:
+        # Polygon's free tier doesn't include intraday/quotes/trades — Alpaca's
+        # free (IEX feed, paper-trading account, no card) does. Only fills the
+        # gaps Polygon left empty; doesn't override real Polygon data with a
+        # thinner (single-exchange) source if Polygon already answered.
+        start_iso = f"{from_date}T00:00:00Z"
+        end_iso = f"{to_date}T23:59:59Z"
+        if intraday_df.empty:
+            intraday_df = alpaca_client.get_intraday_bars(asset.symbol, start_iso, end_iso)
+        if quotes_df.empty:
+            quotes_df = alpaca_client.get_quotes(asset.symbol, start_iso, end_iso)
+        if trades_df.empty:
+            trades_df = alpaca_client.get_trades(asset.symbol, start_iso, end_iso)
 
     if options_df.empty:
         # Polygon's options add-on isn't on the free tier — yfinance has a real

@@ -17,17 +17,17 @@ news in -> impact score (0-100) -> affected assets -> quant signal bank -> ranke
    |---|---|---|
    | HMM regime | Alpha Vantage daily prices, falls back to yfinance | real |
    | Kalman filter | Alpha Vantage daily prices, falls back to yfinance | real |
-   | VWAP | Polygon intraday bars | real (needs Polygon tier); proxy fallback otherwise |
-   | OFI | Polygon NBBO quotes | real (needs Polygon tier); proxy fallback otherwise |
+   | VWAP | Polygon intraday bars (free tier covers this) | real |
+   | OFI | Polygon NBBO quotes (not on free tier), falls back to Alpaca free quotes | real with a free Alpaca key; proxy otherwise |
    | Bai-Perron breaks | Alpha Vantage daily prices (PELT approximation), falls back to yfinance | real |
-   | Dark pool prints | Polygon trades (TRF tag) | real (needs Polygon tier); proxy fallback otherwise |
+   | Dark pool prints | Polygon trades w/ TRF tag (not on free tier); Alpaca fallback covers trades but not TRF tagging | real only with a paid tier (Polygon paid, or Alpaca SIP); proxy on every free-tier combination |
    | GEX (aggregate) | Polygon options snapshot, falls back to yfinance options chain | real — yfinance covers this free, no Polygon add-on needed |
    | Vol surface skew | Polygon options snapshot, falls back to yfinance options chain | real — same free fallback |
    | VRP | prices (AV/yfinance) + options (Polygon/yfinance) | real — realized vol always real, implied vol now real too via the yfinance fallback |
    | VIX term structure | Polygon indices | real (needs Polygon indices add-on); realized-vol proxy fallback |
    | GPR | own news feed keyword density | proxy for the Caldara-Iacoviello index |
 
-   Every `SignalResult` carries `is_mocked` — the synthesizer down-weights proxy signals instead of hiding them. As of tonight, **6 of 9 price/options-based signals run on real data even with Alpha Vantage's quota fully spent and no Polygon options tier** — `src/ingestion/options_data.py` pulls real strike/OI/IV from yfinance's free options chain (no key) and computes delta/gamma via Black-Scholes (yfinance doesn't ship greeks), and `market_data_client.get_yfinance_daily_prices()` is a same-ticker-format fallback for AV's stock/ETF price endpoint. VWAP/OFI/dark pool stay proxy — they need genuine intraday tick/quote data yfinance doesn't offer for free.
+   Every `SignalResult` carries `is_mocked` — the synthesizer down-weights proxy signals instead of hiding them. As of tonight, **7 of 9 price/options-based signals run on real data on the free tiers already in use, with OFI real too given a free Alpaca key** — `src/ingestion/options_data.py` pulls real strike/OI/IV from yfinance's free options chain (no key) and computes delta/gamma via Black-Scholes, `market_data_client.get_yfinance_daily_prices()` fills in for AV's stock/ETF price endpoint when its quota is spent, and `src/ingestion/alpaca_client.py` fills in for Polygon's missing intraday/quotes/trades (free with a paper-trading account, no card — [alpaca.markets](https://alpaca.markets), set `ALPACA_API_KEY_ID`/`ALPACA_API_SECRET_KEY` in `.env`). Only dark pool detection stays proxy on every free combination — genuine TRF (off-exchange print) tagging needs a paid SIP-level feed (Polygon paid tier or Alpaca's SIP add-on), which no amount of free-tier stacking gets around. **The Alpaca client is written from the documented API shape but not verified against a live account** — no key was available in this environment to test with; worth a real-data smoke test before trusting it the way everything else here has been tested live.
 
 5. **Idea synthesis** — confidence-weighted vote across signals -> `long` / `short` / `neutral` with a 0-100 conviction score and a plain-text thesis.
 6. **Trade construction** (`src/idea_generator/trade_builder.py`) — turns the idea into a `TradeSpec`: conviction gate (`take` / `watch` / `skip`), vol-targeted position size, and vol-based stop-loss/take-profit. See "Trade construction" below.
@@ -170,7 +170,10 @@ docker run --env-file .env signal-engine python examples/run_pipeline.py --news-
 
 ## Known limitations
 
-- **VIX term structure, dark pool, OFI, VWAP** need Polygon data tiers (indices add-on, quotes) not included in the free plan, or genuine intraday tick data yfinance doesn't offer for free. They degrade to clearly-labeled proxies (`is_mocked=True`) rather than fail — swap in a real vendor (ORATS, CBOE DataShop, FINRA ADF, Databento) by extending `market_data_client.py`/`options_data.py` and each signal module keeps working unchanged. (GEX and vol skew *used* to be on this list — now real via the yfinance options fallback, see the signal bank table above.)
+- **VIX term structure** needs Polygon's indices add-on, not on the free plan — realized-vol proxy fallback otherwise.
+- **Dark pool prints** stay proxy on every free-tier combination tried tonight (Polygon free, Alpaca free/IEX) — genuine TRF (off-exchange print) tagging needs a paid SIP-level feed. Swap in a real vendor (FINRA ADF directly, Databento, Polygon's paid tier) by extending `market_data_client.py`/`alpaca_client.py`; `dark_pool.py` itself doesn't need to change, it already looks for a `trf_id` column whenever it's given one.
+- **OFI** is real given a free Alpaca key (`src/ingestion/alpaca_client.py`, untested against a live account — no key was available in this environment) — proxy without one.
+- GEX, vol skew, VWAP *used* to be on this list — now real via the yfinance/Polygon-free/Alpaca fallbacks, see the signal bank table above.
 - **GPR** uses a news-density proxy, not the official Caldara-Iacoviello series.
 - **Asset universe** (`data/asset_universe.csv`) is a ~120-symbol seed list, not an exhaustive database — extend it as needed.
 - **The Docker image is unverified** (see Deployment above) — reviewed, not built.

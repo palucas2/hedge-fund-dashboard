@@ -8,6 +8,10 @@ ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "demo")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+# Free (paper-trading account, no card) — unblocks real VWAP/OFI when Polygon's
+# free tier doesn't cover intraday/quotes. See src/ingestion/alpaca_client.py.
+ALPACA_API_KEY_ID = os.getenv("ALPACA_API_KEY_ID", "")
+ALPACA_API_SECRET_KEY = os.getenv("ALPACA_API_SECRET_KEY", "")
 
 ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query"
 NEWS_API_BASE_URL = "https://newsapi.org/v2"
