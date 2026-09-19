@@ -75,13 +75,17 @@ A `TradeIdea` (direction + conviction) isn't a trade — this turns it into a `T
 
 All five constants are env-overridable (see `config.py`) and are documented starting defaults, not backtested/tuned outputs — nothing here has been validated the way the tournament's bots were.
 
-**Validated, partially** — `tournament/sized_backtest.py` backtests the *actual* production formula (imports `src/idea_generator/sizing.py` directly, not a reimplementation) on top of `full_stack`'s signal, with real OHLC-based stop/target triggering instead of just signal-based rebalancing:
+**Validated** — `tournament/sized_backtest.py` backtests the *actual* production formula (imports `src/idea_generator/sizing.py` directly, not a reimplementation) on top of `full_stack`'s signal, with real OHLC-based stop/target triggering instead of just signal-based rebalancing:
 
 ```bash
 python examples/run_sized_backtest.py                    # SPY, AAPL, GLD, TLT, BTC-USD, 5y
+python examples/run_sizing_sweep.py                       # sweep stop/target/target-vol, 1 window
+python examples/run_sizing_sweep_wide.py                   # sweep across 6 assets x 2 non-overlapping windows
 ```
 
-Real run, SPY/TLT, 5y: max drawdown drops sharply with real sizing/stops (SPY 28%→2%, TLT 37%→3%) — expected, since `MAX_POSITION_PCT` caps exposure at 10% of capital vs. the raw bots' fully-invested 100%. That's not really an apples-to-apples return comparison (10% exposure obviously returns less than 100% exposure) so much as a demonstration that the capital-preservation discipline works as designed — this is what one position looks like sized as a slice of a diversified book, not a full-capital bet on one asset. One thing worth a closer look: stop/target exits still fire often (~160 trades over 5y) — `STOP_LOSS_VOL_MULTIPLIER=2.0` may be tight relative to normal daily noise; hasn't been swept the way `tournament/param_sweep.py` swept SMA/RSI.
+Max drawdown drops sharply with real sizing/stops vs. the raw directional bots (e.g. SPY 28%→2%, TLT 37%→3%) — expected, since `MAX_POSITION_PCT` caps exposure at 10% of capital vs. the raw bots' fully-invested 100%. Not really an apples-to-apples return comparison so much as a demonstration that the capital-preservation discipline works as designed.
+
+The stop/target multipliers *have* been swept now (unlike the first cut of this README, which flagged them as untested): first pass on SPY/TLT/AAPL picked `STOP_LOSS_VOL_MULTIPLIER=1.0, TAKE_PROFIT_VOL_MULTIPLIER=6.0` over the original `2.0/3.0` default; a wider rerun across SPY/AAPL/TLT/GLD/QQQ/BTC-USD, 10y split into 2 non-overlapping 5y windows (240 total results) confirmed the same pick — avg Sharpe 0.62 with 91.7% of (symbol, window) combos positive, vs. 0.41 for the original default. Both currently live in `config.py`. `TARGET_ANNUAL_VOL`/`MAX_POSITION_PCT` are still tournament-informed but not swept themselves — a natural next step.
 
 ### Writing ideas into the dashboard (`src/output/alerts_writer.py`)
 
