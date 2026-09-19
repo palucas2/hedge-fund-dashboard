@@ -136,6 +136,21 @@ Header et Sidebar interrogeaient chacun `/api/alerts/unread-count` indépendamme
 - Header garde son propre `useEffect` pour l'horloge (US-E/EU/HK) — c'est du state purement local au composant, pas une donnée partagée, donc pas de raison de le faire transiter par Redux.
 - Testé en conditions réelles (`npm run dev` + navigateur) : prix BTC/S&P live, régime dominant, badge alertes (sidebar item 9 + cloche header) tous corrects après migration, aucune régression.
 
-## Prochaines étapes (voir spec, section 8 — Plan de build)
+## Étape 11 — Signal Engine (`tools/signal-engine/`) + extension Antecede Graph
 
-- Déploiement Vercel/Render (spec, semaine 6) — tous les modules du plan de build sont livrés.
+- **Signal Engine** : pipeline Python autonome, news → score d'impact (0-100) → actifs touchés → banque de 9 signaux quant (HMM, Kalman, VWAP, OFI, Bai-Perron, dark pool, GEX, vol skew, VRP) → idée de trade avec conviction → sizing par volatilité + stops/targets → écriture dans les vraies tables `alerts` et `trades` de cette base. Voir `tools/signal-engine/README.md` pour tout le détail (7-8 des 9 signaux tournent sur données réelles gratuites — Alpha Vantage/yfinance/Polygon free tier/Alpaca free tier — pas de mock caché). Inclut un tournoi de backtest (8 stratégies, validation multi-fenêtres, frais inclus) et un daemon (`run_daemon.py`) pour tourner en continu.
+- **Antecede Graph** étendu de 19 entités (dataset défense) à 136 nœuds / 163 relations couvrant tout l'univers d'actifs (stocks, ETF, commodités, obligations, FX, crypto) — additif, le dataset défense original est intact.
+- Dépôt initialisé sous git et poussé sur GitHub à cette occasion (aucun historique de version n'existait avant, malgré ~2 semaines de travail).
+
+## Étape 12 — Déploiement
+
+**Build vérifié** (`npm run build`, compile proprement, toutes les routes générées) — l'app est prête côté code. Ce qui manque pour un vrai déploiement ne peut être fait que depuis un compte Vercel/Render (identifiants nécessaires, non disponibles pour un agent) :
+
+1. **Vercel** (frontend) : `vercel login` (ou import direct du repo GitHub `palucas2/hedge-fund-dashboard` sur vercel.com/new), puis configurer ces variables d'environnement (valeurs déjà présentes en local dans `.env.local`, à recopier dans Vercel → Project Settings → Environment Variables) :
+   - `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (mettre l'URL de prod une fois assignée par Vercel)
+   - `DATABASE_URL` (déjà la même base Neon utilisée en dev)
+   - `NEWS_API_KEY`, `ALPHA_VANTAGE_KEY`
+   - `ANTHROPIC_API_KEY`, `MARKET_RECAP_PROMPT` — **pas encore configurées, même en local** ; Module 6 (Market Recap) et le bouton "Analyser avec Claude" du Module 7 dégradent gracieusement sans, mais ne fonctionnent pas tant que ces deux-là ne sont pas renseignées
+2. **Backend/daemon** (Render/Railway, ou tout hôte qui garde un process actif) : `tools/signal-engine/Dockerfile` est prêt (non testé — pas de `docker` dans cet environnement de dev, voir `tools/signal-engine/README.md`), tourne `run_daemon.py` en continu.
+
+Aucune action de déploiement effective n'a été prise (création de projet Vercel, connexion de compte) — nécessite une décision + des identifiants qui ne m'appartiennent pas.
