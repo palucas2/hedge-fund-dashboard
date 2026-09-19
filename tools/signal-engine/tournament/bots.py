@@ -89,10 +89,70 @@ def full_stack_bot(price_df: pd.DataFrame, refit_every: int = 21, min_obs: int =
     return positions
 
 
+def hmm_kalman_confirm_bot(price_df: pd.DataFrame, refit_every: int = 21, min_obs: int = 80) -> pd.Series:
+    """Higher-conviction variant: only trades when HMM regime and Kalman trend
+    agree on direction, flat otherwise. Fewer, more selective trades than either
+    signal alone — tests whether requiring agreement beats voting."""
+    positions = pd.Series(0.0, index=price_df.index)
+    prices = price_df["close"].values.astype(float)
+    _, trends = _run_kalman(prices)
+    kalman_signs = np.sign(trends)
+
+    last_hmm = "neutral"
+    for i in range(len(price_df)):
+        if i < min_obs:
+            continue
+        if i == min_obs or (i - min_obs) % refit_every == 0:
+            window = price_df.iloc[: i + 1]
+            last_hmm = hmm_regime.compute("BACKTEST", window).direction
+        hmm_dir = DIRECTION_TO_POSITION[last_hmm]
+        kalman_dir = float(kalman_signs[i])
+        positions.iloc[i] = hmm_dir if hmm_dir != 0 and hmm_dir == kalman_dir else 0.0
+
+    return positions
+
+
+def sma_crossover_bot(price_df: pd.DataFrame, fast: int = 50, slow: int = 200) -> pd.Series:
+    """Classic trend-following benchmark, independent of the signal bank — long
+    when the fast SMA is above the slow SMA, short otherwise. Included so the
+    HMM/Kalman/Bai-Perron bots are measured against the simplest thing that
+    could plausibly work, not just against each other and buy-and-hold."""
+    close = price_df["close"]
+    fast_sma = close.rolling(fast).mean()
+    slow_sma = close.rolling(slow).mean()
+    positions = pd.Series(0.0, index=price_df.index)
+    positions[fast_sma > slow_sma] = 1.0
+    positions[fast_sma < slow_sma] = -1.0
+    positions[slow_sma.isna()] = 0.0
+    return positions
+
+
+def rsi_mean_reversion_bot(price_df: pd.DataFrame, period: int = 14, oversold: float = 30, overbought: float = 70) -> pd.Series:
+    """Contrarian, not trend-following — long when RSI signals oversold, short
+    when overbought, flat in between. A deliberately different market thesis
+    from every other bot here, so the tournament isn't just five flavors of
+    momentum agreeing or disagreeing with each other."""
+    close = price_df["close"]
+    delta = close.diff()
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = (-delta.clip(upper=0)).rolling(period).mean()
+    rs = gain / loss.replace(0, np.nan)
+    rsi = 100 - (100 / (1 + rs))
+
+    positions = pd.Series(0.0, index=price_df.index)
+    positions[rsi < oversold] = 1.0
+    positions[rsi > overbought] = -1.0
+    positions[rsi.isna()] = 0.0
+    return positions
+
+
 BOTS = {
     "buy_and_hold": buy_and_hold,
     "hmm_regime": hmm_regime_bot,
     "bai_perron": bai_perron_bot,
     "kalman_trend": kalman_trend_bot,
     "full_stack": full_stack_bot,
+    "hmm_kalman_confirm": hmm_kalman_confirm_bot,
+    "sma_crossover": sma_crossover_bot,
+    "rsi_mean_reversion": rsi_mean_reversion_bot,
 }
