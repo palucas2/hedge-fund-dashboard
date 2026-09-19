@@ -30,6 +30,7 @@ news in -> impact score (0-100) -> affected assets -> quant signal bank -> ranke
    Every `SignalResult` carries `is_mocked` — the synthesizer down-weights proxy signals instead of hiding them.
 
 5. **Idea synthesis** — confidence-weighted vote across signals -> `long` / `short` / `neutral` with a 0-100 conviction score and a plain-text thesis.
+6. **Trade construction** (`src/idea_generator/trade_builder.py`) — turns the idea into a `TradeSpec`: conviction gate (`take` / `watch` / `skip`), vol-targeted position size, and vol-based stop-loss/take-profit. See "Trade construction" below.
 
 ## Setup
 
@@ -63,6 +64,26 @@ python examples/run_pipeline.py --news-limit 15 --top 10 --fast
 Without `--fast`, the client throttles Polygon calls to stay under the free-tier rate limit, so a run with several assets will take a while — that's expected, not a hang.
 
 If Alpha Vantage's daily quota is already spent, `NEWS_SENTIMENT` and price lookups return empty (not an error) — the pipeline still runs, but since NewsAPI events carry no sentiment/ticker tags, they can't clear the impact-score threshold alone (their score maxes out around 20/100 on keywords only, vs. the 25 threshold). Ideas resume once AV's quota resets, or once you're on a paid AV tier.
+
+## Trade construction (`src/idea_generator/trade_builder.py`)
+
+A `TradeIdea` (direction + conviction) isn't a trade — this turns it into a `TradeSpec` with an actual size and risk levels:
+
+- **Conviction gate**: `>= CONVICTION_TAKE_THRESHOLD` (default 60) -> `take`; `>= CONVICTION_WATCH_THRESHOLD` (default 35) -> `watch`, logged but not sized; below that, or no directional call -> `skip`, not logged at all.
+- **Sizing**: `MAX_POSITION_PCT` (default 10% of capital) scaled down by `TARGET_ANNUAL_VOL / realized_annual_vol`, never scaled up past the cap. This specific mechanism — not the exact numbers — is the one finding from the tournament (`tournament/portfolio_bots.py`) solid enough to build on: it roughly halved max drawdown and lifted Sharpe in a real multi-asset backtest.
+- **Stop-loss/take-profit**: a multiple of recent daily realized vol (`STOP_LOSS_VOL_MULTIPLIER`=2.0, `TAKE_PROFIT_VOL_MULTIPLIER`=3.0, ~1.5:1 reward:risk), not a fixed percentage — a 5% stop means something very different on TLT than on BTC-USD.
+
+All five constants are env-overridable (see `config.py`) and are documented starting defaults, not backtested/tuned outputs — nothing here has been validated the way the tournament's bots were. Don't size real capital off this without testing the sizing/stop rules themselves first (a natural next step: backtest `trade_builder`'s exact sizing formula the same way `tournament/` backtested the bots).
+
+### Writing ideas into the dashboard (`src/output/alerts_writer.py`)
+
+```bash
+python examples/run_pipeline.py --news-limit 15 --write-alerts
+```
+
+Writes every `take`/`watch` spec as a row in the same Postgres `alerts` table the Next.js dashboard's Module 9 (Volatility & Event Tracker) reads from — `type='signal_engine'`, severity `red`/`orange` (take, by conviction) or `yellow` (watch), `relevance_score` 1-5 from conviction. Deduped by (asset, title) within a rolling 24h window so re-running the pipeline doesn't spam duplicate alerts. `skip` specs are never written.
+
+Needs `DATABASE_URL` in `.env` (same Neon connection string as the Next.js app's own `.env`). Uses plain `psycopg2`, not Prisma — worth noting because in this project's dev sandbox, Prisma's CLI (`db pull`/`migrate`) can't reach Postgres at all (its Rust engine's connection handling trips on something the sandbox's network layer doesn't like) while `psycopg2` connects immediately; that's an artifact of Prisma's engine in that specific environment, not a real restriction, so this writer works the same way here as it will in production.
 
 ## Strategy tournament (`tournament/`)
 

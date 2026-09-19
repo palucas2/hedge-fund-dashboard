@@ -15,6 +15,10 @@ def main():
         "--fast", action="store_true",
         help="skip Polygon calls entirely (VWAP/OFI/dark pool/GEX/vol skew fall straight to proxy mode) — fast iteration, no rate-limit waits",
     )
+    parser.add_argument(
+        "--write-alerts", action="store_true",
+        help="write take/watch specs into the dashboard's real `alerts` table (dedup'd 24h per asset+title) — off by default, this touches production data",
+    )
     args = parser.parse_args()
 
     specs = run_pipeline(news_limit=args.news_limit, use_polygon=not args.fast)
@@ -33,6 +37,12 @@ def main():
         print("-" * 80)
         print(idea.thesis)
         print()
+
+    if args.write_alerts:
+        from src.output.alerts_writer import write_trade_specs
+
+        count = write_trade_specs(specs)
+        print(f"Wrote {count} new alert(s) to the dashboard's alerts table (deduped against the last {24}h).")
 
 
 if __name__ == "__main__":
