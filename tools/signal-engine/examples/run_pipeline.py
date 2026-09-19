@@ -19,6 +19,11 @@ def main():
         "--write-alerts", action="store_true",
         help="write take/watch specs into the dashboard's real `alerts` table (dedup'd 24h per asset+title) — off by default, this touches production data",
     )
+    parser.add_argument(
+        "--write-trades", action="store_true",
+        help="write 'take' specs as open paper positions into the dashboard's real `trades` table (one open position per asset at a time) — this is what makes forward validation possible, since backtests can only grade against history that already happened",
+    )
+    parser.add_argument("--account-size", type=float, default=100_000, help="notional account size for --write-trades sizing_usd (default $100k)")
     args = parser.parse_args()
 
     specs = run_pipeline(news_limit=args.news_limit, use_polygon=not args.fast)
@@ -43,6 +48,12 @@ def main():
 
         count = write_trade_specs(specs)
         print(f"Wrote {count} new alert(s) to the dashboard's alerts table (deduped against the last {24}h).")
+
+    if args.write_trades:
+        from src.output.trades_writer import write_paper_trades
+
+        count = write_paper_trades(specs, account_size=args.account_size)
+        print(f"Opened {count} new paper trade(s) in the dashboard's trades table (one open position per asset at a time).")
 
 
 if __name__ == "__main__":

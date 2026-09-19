@@ -16,21 +16,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.output.alerts_writer import write_trade_specs
+from src.output.trades_writer import write_paper_trades
 from src.pipeline import run_pipeline
 
 
-def run_cycle(news_limit: int, use_polygon: bool) -> None:
+def run_cycle(news_limit: int, use_polygon: bool, paper_trade: bool, account_size: float) -> None:
     started = datetime.now()
     specs = run_pipeline(news_limit=news_limit, use_polygon=use_polygon)
     taken = sum(1 for s in specs if s.action == "take")
     watched = sum(1 for s in specs if s.action == "watch")
 
     written = write_trade_specs(specs)
+    opened = write_paper_trades(specs, account_size=account_size) if paper_trade else 0
 
     elapsed = (datetime.now() - started).total_seconds()
     print(
         f"[{started:%Y-%m-%d %H:%M:%S}] cycle done in {elapsed:.1f}s — "
-        f"{len(specs)} ideas ({taken} take, {watched} watch) — {written} new alerts written"
+        f"{len(specs)} ideas ({taken} take, {watched} watch) — {written} new alerts, {opened} new paper trades"
     )
 
 
@@ -40,13 +42,15 @@ def main():
     parser.add_argument("--news-limit", type=int, default=20)
     parser.add_argument("--fast", action="store_true", help="skip Polygon calls (see run_pipeline.py --fast)")
     parser.add_argument("--cycles", type=int, default=0, help="stop after N cycles (0 = run forever)")
+    parser.add_argument("--paper-trade", action="store_true", help="also open real paper positions in the trades table (see run_pipeline.py --write-trades)")
+    parser.add_argument("--account-size", type=float, default=100_000)
     args = parser.parse_args()
 
-    print(f"Starting daemon: every {args.interval}s, news_limit={args.news_limit}, fast={args.fast}")
+    print(f"Starting daemon: every {args.interval}s, news_limit={args.news_limit}, fast={args.fast}, paper_trade={args.paper_trade}")
     count = 0
     while True:
         try:
-            run_cycle(args.news_limit, use_polygon=not args.fast)
+            run_cycle(args.news_limit, use_polygon=not args.fast, paper_trade=args.paper_trade, account_size=args.account_size)
         except Exception as e:
             print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] cycle failed: {e!r} — continuing")
 

@@ -93,14 +93,27 @@ Writes every `take`/`watch` spec as a row in the same Postgres `alerts` table th
 
 Needs `DATABASE_URL` in `.env` (same Neon connection string as the Next.js app's own `.env`). Uses plain `psycopg2`, not Prisma — worth noting because in this project's dev sandbox, Prisma's CLI (`db pull`/`migrate`) can't reach Postgres at all (its Rust engine's connection handling trips on something the sandbox's network layer doesn't like) while `psycopg2` connects immediately; that's an artifact of Prisma's engine in that specific environment, not a real restriction, so this writer works the same way here as it will in production.
 
+### Paper trading — forward validation (`src/output/trades_writer.py`)
+
+```bash
+python examples/run_pipeline.py --news-limit 15 --write-trades --account-size 100000
+```
+
+Every backtest in this repo, however carefully split-window'd and fee-adjusted, only ever grades against history that already happened before the code testing it was written — there's no substitute for logging a call *before* the outcome is known and checking it later. This writes `take` specs as **open positions in the real `trades` table** (`strategy='Algo'`, `tags` includes `signal_engine` + the conviction score at entry): entry price, vol-targeted size (`sizing_usd` from `--account-size`), SL/TP. One open `signal_engine` position per asset at a time — a fresh idea pointing at an asset that already has one open is skipped rather than pyramiding. They show up in the dashboard's existing Trade Journal (Module 8) and Performance (Module 2) UI like any manually-logged trade — closing them (recording the actual exit) is still a manual step in the dashboard for now, nothing here auto-closes a position when price hits SL/TP.
+
+Tested live: opened a synthetic JNJ position, confirmed the row (correct `user_id` resolved from the admin account, correct sizing math), confirmed a second call with the same idea opened nothing (dedup), then deleted the test row — fake data doesn't belong in a table meant to become a real track record.
+
+`run_daemon.py --paper-trade` does the same thing every cycle, so a position opened tonight can be checked against reality in a week without anyone re-running anything by hand.
+
 ### Running continuously (`examples/run_daemon.py`)
 
 ```bash
-python examples/run_daemon.py --interval 900          # every 15 min, forever
-python examples/run_daemon.py --interval 5 --cycles 2 --fast   # quick local test
+python examples/run_daemon.py --interval 900                         # every 15 min, forever, alerts only
+python examples/run_daemon.py --interval 900 --paper-trade            # also opens real paper positions each cycle
+python examples/run_daemon.py --interval 5 --cycles 2 --fast          # quick local test
 ```
 
-Polls the pipeline on an interval and writes alerts each cycle — no dedicated cron infra, same pattern the dashboard's own Module 9 polling already uses. One bad cycle (API hiccup, transient DB error) is caught and logged, never kills the loop. This is the thing you'd actually run on a server/cron for it to do anything unattended — nothing here runs itself without a process staying up.
+Polls the pipeline on an interval and writes alerts (and, with `--paper-trade`, paper positions) each cycle — no dedicated cron infra, same pattern the dashboard's own Module 9 polling already uses. One bad cycle (API hiccup, transient DB error) is caught and logged, never kills the loop. This is the thing you'd actually run on a server/cron for it to do anything unattended — nothing here runs itself without a process staying up (see Deployment below).
 
 ## Strategy tournament (`tournament/`)
 
