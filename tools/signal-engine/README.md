@@ -70,8 +70,8 @@ Backtests every bot against every asset and ranks them — turns the signal bank
 
 ```bash
 pip install -r requirements-tournament.txt
-python examples/run_tournament.py                                    # SPY, AAPL, GLD, TLT, BTC-USD, 5y
-python examples/run_tournament.py --symbols SPY QQQ --period 10y
+python examples/run_tournament.py                                    # 16 assets x 8 bots x 2 windows, 10y
+python examples/run_tournament.py --symbols SPY QQQ --period 10y --windows 3
 ```
 
 Bots (`tournament/bots.py`):
@@ -83,10 +83,23 @@ Bots (`tournament/bots.py`):
 | `bai_perron` | post-breakpoint slope direction, same refit cadence |
 | `kalman_trend` | sign of the Kalman filter's trend term — causal by construction, computed once over the full series |
 | `full_stack` | majority vote of the three above, same refit cadence |
+| `hmm_kalman_confirm` | only trades when HMM and Kalman agree; flat otherwise — higher conviction, fewer trades |
+| `sma_crossover` | classic 50/200-day moving-average crossover, independent of the signal bank — the benchmark every other bot has to beat, not just buy-and-hold |
+| `rsi_mean_reversion` | contrarian — long oversold (RSI<30), short overbought (RSI>70); the only non-trend-following bot in the roster |
 
-Positions are shifted one bar forward before backtesting (a signal from day t's close can't be traded until day t+1 — no lookahead). HMM/Bai-Perron refit periodically rather than daily; refitting either model on every single day over 5 years per asset per bot isn't worth the compute for what's the same regime call on all but a handful of days.
+Positions are shifted one bar forward before backtesting (a signal from day t's close can't be traded until day t+1 — no lookahead), and every trade pays a 5bps fee (`DEFAULT_FEES` in `engine.py`) — without it, the high-turnover bots (300-600 trades over 5y) show backtested Sharpe no real broker/spread would let you keep. HMM/Bai-Perron refit periodically rather than daily; refitting either model on every single day over years of history per asset per bot isn't worth the compute for what's the same regime call on all but a handful of days.
 
-Real run, 5 assets x 5 bots, 5-year daily history (Sep 2026): buy-and-hold won on Sharpe on SPY/AAPL/GLD/BTC — all four were in a strong multi-year uptrend, where regime/trend bots mostly add whipsaw. The interesting result is TLT (bonds, in a multi-year *downtrend* over the same window): buy-and-hold scored -0.58 Sharpe, and every active bot beat it (best: `bai_perron` at +0.08) — the one asset where regime detection had an actual regime to detect. Small sample (one non-overlapping 5y window per asset), reran to check robustness before trusting the numbers for sizing.
+**Split-window evaluation, not one lucky run.** A single backtest window is a sample size of one — `run_tournament(..., n_windows=2)` splits the full history into non-overlapping chunks (default: `10y` -> two 5y windows) and backtests every bot on every window independently. The leaderboard's `consistency_pct` column (share of asset/window combos with positive Sharpe) is what actually separates a robust bot from one carried by a single good window on a single asset — a bot with a great average Sharpe but 25% consistency got lucky once, not built an edge.
+
+Real run, 16 assets x 8 bots x 2 non-overlapping 5y windows, fees included (Sep 2026): **buy-and-hold wins overall** — avg Sharpe 0.77, 84% consistency, ahead of every active bot. Best of the rest: `sma_crossover` (0.36 Sharpe, 72% consistency) and `bai_perron` (0.25, 72%). `rsi_mean_reversion` and `hmm_regime` finished with negative average Sharpe. This is the honest, unflattering, and expected result — most systematic signals don't beat a passive benchmark net of costs, which is the standard finding in the actual quant literature, not a reason to keep tuning until the number looks better. Treat this as a starting point for further validation (out-of-sample paper trading, more windows), not as a signal to size real capital off backtested Sharpe alone.
+
+### Follow-up experiments
+
+Three more angles, each independently tested and each an honest result rather than a search for a number that looks good:
+
+- **`tournament/param_sweep.py`** — is a bot's chosen parameter set (SMA 50/200, RSI 14/30/70) actually robust, or just the one combo that happened to backtest well? Swept 24 SMA and 36 RSI combos across SPY/AAPL/TLT: SMA crossover held up (96% of nearby combos had positive Sharpe — the default isn't optimal but it's solidly mid-pack), **RSI mean-reversion did not** (only 36% positive, and on TLT the exact chosen default ranked dead last of 12 neighbors tested) — confirms `rsi_mean_reversion`'s tournament result was noise, not signal. Run: `python examples/run_param_sweep.py`.
+- **`tournament/portfolio_bots.py`** — vol-targeted position sizing (scale each bot's call by target-vol/realized-vol, so it sizes down in chop and up when calm) combined into an equal-weight multi-asset portfolio. On SPY/TLT/GLD/BTC-USD/AAPL over 3y, vol-targeting roughly halved max drawdown and meaningfully lifted Sharpe for both `full_stack` and `sma_crossover` — a real risk-adjusted improvement, though buy-and-hold still won on raw return in this bull-market window. Run: `python examples/run_portfolio_backtest.py`.
+- **`tournament/vol_regime_bot.py`** — forcing a bot flat during high-realized-vol stretches (75th percentile threshold), tested against plain `full_stack` on SPY/AAPL/TLT/BTC-USD. **Hurt in 3 of 4 cases** — high-vol periods often contain the real trending moves a regime bot is trying to catch, not just chop, so filtering them out cut both return and (on BTC-USD) actually raised max drawdown by cutting a recovery short. Only helped on TLT, the most range-bound of the four. Not a clean win; don't treat it as validated. Run: `python examples/run_vol_regime_test.py`.
 
 ## Known limitations
 
