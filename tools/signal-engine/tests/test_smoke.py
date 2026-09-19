@@ -77,6 +77,19 @@ def test_signals_degrade_gracefully_on_empty_data():
     assert vrp.compute("TEST", empty).is_mocked is True
 
 
+def test_vwap_handles_zero_volume_without_crashing():
+    """Regression: bonds/FX/commodities carry volume=0 (pipeline.py's flat-series
+    conversion) — vwap.py used to divide by a zero volume sum and hand back NaN,
+    which crashed the synthesizer's round(conviction) downstream."""
+    zero_volume_df = _synthetic_price_df(n=30)
+    zero_volume_df["volume"] = 0.0
+
+    result = vwap.compute("TEST", daily_df=zero_volume_df)
+    assert result.direction == "neutral"
+    assert result.is_mocked is True
+    assert not pd.isna(result.confidence)
+
+
 def test_synthesizer_produces_directional_idea_from_bearish_signals():
     event = make_event()
     impact = score_news(event)

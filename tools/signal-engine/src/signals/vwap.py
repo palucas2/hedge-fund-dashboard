@@ -19,8 +19,12 @@ def _direction_from_deviation(deviation_pct: float) -> str:
 
 
 def compute(asset: str, intraday_df: pd.DataFrame | None = None, daily_df: pd.DataFrame | None = None) -> SignalResult:
-    if intraday_df is not None and not intraday_df.empty and "vwap" in intraday_df.columns:
-        session = intraday_df.iloc[-1]
+    if (
+        intraday_df is not None
+        and not intraday_df.empty
+        and "vwap" in intraday_df.columns
+        and intraday_df["volume"].sum() > 0
+    ):
         cum_vwap = (intraday_df["vwap"] * intraday_df["volume"]).sum() / intraday_df["volume"].sum()
         latest_price = intraday_df["close"].iloc[-1]
         deviation_pct = (latest_price - cum_vwap) / cum_vwap * 100
@@ -35,7 +39,7 @@ def compute(asset: str, intraday_df: pd.DataFrame | None = None, daily_df: pd.Da
             note="intraday session VWAP from Polygon minute bars",
         )
 
-    if daily_df is not None and not daily_df.empty and len(daily_df) >= 5:
+    if daily_df is not None and not daily_df.empty and len(daily_df) >= 5 and daily_df["volume"].tail(20).sum() > 0:
         window = daily_df.tail(20).copy()
         typical_price = (window["high"] + window["low"] + window["close"]) / 3
         vwap_proxy = (typical_price * window["volume"]).sum() / window["volume"].sum()
