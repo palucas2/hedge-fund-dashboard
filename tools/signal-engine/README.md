@@ -85,6 +85,15 @@ Writes every `take`/`watch` spec as a row in the same Postgres `alerts` table th
 
 Needs `DATABASE_URL` in `.env` (same Neon connection string as the Next.js app's own `.env`). Uses plain `psycopg2`, not Prisma — worth noting because in this project's dev sandbox, Prisma's CLI (`db pull`/`migrate`) can't reach Postgres at all (its Rust engine's connection handling trips on something the sandbox's network layer doesn't like) while `psycopg2` connects immediately; that's an artifact of Prisma's engine in that specific environment, not a real restriction, so this writer works the same way here as it will in production.
 
+### Running continuously (`examples/run_daemon.py`)
+
+```bash
+python examples/run_daemon.py --interval 900          # every 15 min, forever
+python examples/run_daemon.py --interval 5 --cycles 2 --fast   # quick local test
+```
+
+Polls the pipeline on an interval and writes alerts each cycle — no dedicated cron infra, same pattern the dashboard's own Module 9 polling already uses. One bad cycle (API hiccup, transient DB error) is caught and logged, never kills the loop. This is the thing you'd actually run on a server/cron for it to do anything unattended — nothing here runs itself without a process staying up.
+
 ## Strategy tournament (`tournament/`)
 
 Backtests every bot against every asset and ranks them — turns the signal bank into daily long/flat/short position series and runs them through [vectorbt](https://github.com/polakowo/vectorbt) (Apache 2.0 + Commons Clause — free for internal use, just can't resell the library itself). Historical data comes from Yahoo Finance (`yfinance`), not Alpha Vantage — pulling years of daily history across several assets would blow through AV's 25 req/day free cap in one run.
