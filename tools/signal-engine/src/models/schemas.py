@@ -64,3 +64,19 @@ class TradeIdea:
     supporting_signals: list[SignalResult] = field(default_factory=list)
     news_trigger: NewsEvent | None = None
     impact_score: ImpactScore | None = None
+
+
+@dataclass
+class TradeSpec:
+    """What actually gets logged/acted on — a TradeIdea plus everything needed
+    to size and risk-manage it. Separate from TradeIdea because an idea can
+    exist (and be logged) without clearing the bar to actually take it."""
+
+    idea: TradeIdea
+    action: str  # "take" | "watch" | "skip"
+    entry_price: float | None
+    size_pct: float  # fraction of account capital, 0 if action != "take"
+    stop_loss: float | None
+    take_profit: float | None
+    realized_vol_annualized: float | None
+    rationale: str

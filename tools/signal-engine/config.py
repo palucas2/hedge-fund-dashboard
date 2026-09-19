@@ -14,3 +14,13 @@ POLYGON_BASE_URL = "https://api.polygon.io"
 
 DATA_DIR = Path(__file__).parent / "data"
 ASSET_UNIVERSE_CSV = DATA_DIR / "asset_universe.csv"
+
+# Trade construction — tournament-validated defaults (tools/signal-engine/tournament/):
+# vol-targeted sizing halved max drawdown and lifted Sharpe in the portfolio backtest;
+# these thresholds are a starting point, not tuned/optimized against any backtest yet.
+TARGET_ANNUAL_VOL = float(os.getenv("TARGET_ANNUAL_VOL", "0.15"))
+MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.10"))  # cap per single idea
+STOP_LOSS_VOL_MULTIPLIER = float(os.getenv("STOP_LOSS_VOL_MULTIPLIER", "2.0"))
+TAKE_PROFIT_VOL_MULTIPLIER = float(os.getenv("TAKE_PROFIT_VOL_MULTIPLIER", "3.0"))  # ~1.5:1 reward:risk
+CONVICTION_TAKE_THRESHOLD = int(os.getenv("CONVICTION_TAKE_THRESHOLD", "60"))
+CONVICTION_WATCH_THRESHOLD = int(os.getenv("CONVICTION_WATCH_THRESHOLD", "35"))

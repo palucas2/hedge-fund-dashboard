@@ -14,8 +14,9 @@ import pandas as pd
 
 from src.entity_resolution.asset_mapper import map_news_to_assets
 from src.idea_generator.synthesizer import synthesize
+from src.idea_generator.trade_builder import build_trade_spec
 from src.ingestion import market_data_client, news_client
-from src.models.schemas import AssetClass, AssetHit, NewsEvent, TradeIdea
+from src.models.schemas import AssetClass, AssetHit, NewsEvent, TradeSpec
 from src.scoring.impact_scorer import score_news
 from src.signals import bai_perron, dark_pool, gex, hmm_regime, kalman_filter, ofi, vix_term_structure, vol_skew, vrp, vwap
 
@@ -98,27 +99,28 @@ def run_signals_for_asset(asset: AssetHit, price_df: pd.DataFrame, use_polygon: 
     return signals
 
 
-def process_news_event(event: NewsEvent, use_polygon: bool = True) -> list[TradeIdea]:
+def process_news_event(event: NewsEvent, use_polygon: bool = True) -> list[TradeSpec]:
     impact = score_news(event)
     if impact.score < MIN_IMPACT_SCORE:
         return []
 
     asset_hits = map_news_to_assets(event, max_assets=MAX_ASSETS_PER_NEWS)
-    ideas = []
+    specs = []
     for asset in asset_hits:
         price_df = get_price_history(asset)
         signals = run_signals_for_asset(asset, price_df, use_polygon=use_polygon)
-        ideas.append(synthesize(asset.symbol, event, impact, signals))
+        idea = synthesize(asset.symbol, event, impact, signals)
+        specs.append(build_trade_spec(idea, price_df))
 
-    return ideas
+    return specs
 
 
-def run_pipeline(news_limit: int = 20, use_polygon: bool = True) -> list[TradeIdea]:
+def run_pipeline(news_limit: int = 20, use_polygon: bool = True) -> list[TradeSpec]:
     events = news_client.fetch_latest_news(limit=news_limit)
 
-    all_ideas: list[TradeIdea] = []
+    all_specs: list[TradeSpec] = []
     for event in events:
-        all_ideas.extend(process_news_event(event, use_polygon=use_polygon))
+        all_specs.extend(process_news_event(event, use_polygon=use_polygon))
 
     # macro overlay, independent of any single news item
     gpr_signal = None
@@ -129,9 +131,9 @@ def run_pipeline(news_limit: int = 20, use_polygon: bool = True) -> list[TradeId
     except Exception:
         pass
 
-    all_ideas.sort(key=lambda idea: idea.conviction, reverse=True)
+    all_specs.sort(key=lambda spec: spec.idea.conviction, reverse=True)
     if gpr_signal:
-        for idea in all_ideas:
-            idea.supporting_signals.append(gpr_signal)
+        for spec in all_specs:
+            spec.idea.supporting_signals.append(gpr_signal)
 
-    return all_ideas
+    return all_specs

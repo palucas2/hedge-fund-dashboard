@@ -4,12 +4,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import config
 from src.entity_resolution.asset_mapper import map_news_to_assets
 from src.idea_generator.synthesizer import synthesize
-from src.models.schemas import NewsEvent
+from src.idea_generator.trade_builder import build_trade_spec
+from src.models.schemas import AssetClass, NewsEvent, TradeIdea
 from src.scoring.impact_scorer import score_news
 from src.signals import bai_perron, dark_pool, gex, hmm_regime, kalman_filter, ofi, vol_skew, vrp, vwap
 
+import numpy as np
 import pandas as pd
 
 
@@ -91,6 +94,53 @@ def test_synthesizer_produces_directional_idea_from_bearish_signals():
     idea = synthesize("IBM", event, impact, signals)
     assert idea.direction in ("short", "neutral")
     assert 0 <= idea.conviction <= 100
+
+
+def _synthetic_price_df(n=100, seed=0):
+    rng = np.random.default_rng(seed)
+    prices = 100 + np.cumsum(rng.standard_normal(n) * 0.5)
+    return pd.DataFrame(
+        {"close": prices, "open": prices, "high": prices * 1.01, "low": prices * 0.99, "volume": 1e6},
+        index=pd.date_range("2025-01-01", periods=n),
+    )
+
+
+def _make_idea(conviction, direction="long"):
+    return TradeIdea(asset="TEST", asset_class=AssetClass.STOCK, direction=direction, conviction=conviction, thesis="t")
+
+
+def test_trade_builder_skips_low_conviction():
+    spec = build_trade_spec(_make_idea(config.CONVICTION_WATCH_THRESHOLD - 1), _synthetic_price_df())
+    assert spec.action == "skip"
+    assert spec.size_pct == 0.0
+    assert spec.stop_loss is None
+
+
+def test_trade_builder_watches_mid_conviction():
+    mid = (config.CONVICTION_WATCH_THRESHOLD + config.CONVICTION_TAKE_THRESHOLD) // 2
+    spec = build_trade_spec(_make_idea(mid), _synthetic_price_df())
+    assert spec.action == "watch"
+    assert spec.size_pct == 0.0
+
+
+def test_trade_builder_takes_high_conviction_with_sane_sizing():
+    spec = build_trade_spec(_make_idea(config.CONVICTION_TAKE_THRESHOLD + 10, "long"), _synthetic_price_df())
+    assert spec.action == "take"
+    assert 0 < spec.size_pct <= config.MAX_POSITION_PCT
+    assert spec.stop_loss < spec.entry_price < spec.take_profit  # long: stop below, target above
+
+
+def test_trade_builder_short_stop_and_target_are_mirrored():
+    spec = build_trade_spec(_make_idea(config.CONVICTION_TAKE_THRESHOLD + 10, "short"), _synthetic_price_df())
+    assert spec.action == "take"
+    assert spec.take_profit < spec.entry_price < spec.stop_loss  # short: stop above, target below
+
+
+def test_trade_builder_skips_sizing_without_enough_history():
+    short_df = _synthetic_price_df(n=5)
+    spec = build_trade_spec(_make_idea(config.CONVICTION_TAKE_THRESHOLD + 10), short_df)
+    assert spec.action != "take"
+    assert spec.size_pct == 0.0
 
 
 if __name__ == "__main__":

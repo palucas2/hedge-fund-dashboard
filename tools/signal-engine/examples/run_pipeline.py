@@ -17,15 +17,19 @@ def main():
     )
     args = parser.parse_args()
 
-    ideas = run_pipeline(news_limit=args.news_limit, use_polygon=not args.fast)
+    specs = run_pipeline(news_limit=args.news_limit, use_polygon=not args.fast)
 
-    if not ideas:
+    if not specs:
         print("No trade ideas generated (no news cleared the impact threshold, or no assets matched).")
         return
 
-    for idea in ideas[: args.top]:
+    for spec in specs[: args.top]:
+        idea = spec.idea
         print("=" * 80)
-        print(f"{idea.asset} ({idea.asset_class.value}) — {idea.direction.upper()} — conviction {idea.conviction}/100")
+        print(f"{idea.asset} ({idea.asset_class.value}) — {idea.direction.upper()} — conviction {idea.conviction}/100 — ACTION: {spec.action.upper()}")
+        if spec.action == "take":
+            print(f"  entry {spec.entry_price} | size {spec.size_pct:.2%} of capital | SL {spec.stop_loss} | TP {spec.take_profit}")
+        print(f"  ({spec.rationale})")
         print("-" * 80)
         print(idea.thesis)
         print()
