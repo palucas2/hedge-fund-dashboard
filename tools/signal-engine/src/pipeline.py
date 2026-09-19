@@ -15,7 +15,7 @@ import pandas as pd
 from src.entity_resolution.asset_mapper import map_news_to_assets
 from src.idea_generator.synthesizer import synthesize
 from src.idea_generator.trade_builder import build_trade_spec
-from src.ingestion import market_data_client, news_client
+from src.ingestion import market_data_client, news_client, options_data
 from src.models.schemas import AssetClass, AssetHit, NewsEvent, TradeSpec
 from src.scoring.impact_scorer import score_news
 from src.signals import bai_perron, dark_pool, gex, hmm_regime, kalman_filter, ofi, vix_term_structure, vol_skew, vrp, vwap
@@ -60,6 +60,11 @@ def get_price_history(asset: AssetHit) -> pd.DataFrame:
                 df["volume"] = df.get("volume", 0.0)
         else:
             df = market_data_client.get_daily_prices(asset.symbol)
+            if df.empty:
+                # AV's 25 req/day quota is easy to exhaust across a run with several
+                # assets — yfinance uses the same ticker format for stocks/ETFs, no
+                # remapping needed, so it's a clean fallback for this asset class.
+                df = market_data_client.get_yfinance_daily_prices(asset.symbol)
     except Exception:
         df = pd.DataFrame()
 
@@ -71,6 +76,7 @@ def run_signals_for_asset(asset: AssetHit, price_df: pd.DataFrame, use_polygon: 
     today = date.today()
     from_date = (today - timedelta(days=5)).isoformat()
     to_date = today.isoformat()
+    spot_price = float(price_df["close"].iloc[-1]) if not price_df.empty else None
 
     if use_polygon:
         intraday_df = market_data_client.get_intraday_aggregates(asset.symbol, from_date, to_date)
@@ -83,7 +89,17 @@ def run_signals_for_asset(asset: AssetHit, price_df: pd.DataFrame, use_polygon: 
         quotes_df = pd.DataFrame()
         trades_df = pd.DataFrame()
         options_df = pd.DataFrame()
-    spot_price = float(price_df["close"].iloc[-1]) if not price_df.empty else None
+
+    if options_df.empty:
+        # Polygon's options add-on isn't on the free tier — yfinance has a real
+        # (free, no key) options chain, just missing greeks, computed here via
+        # Black-Scholes. Tried regardless of --fast: unlike Polygon this isn't
+        # rate-limited, so there's no throttle cost to still getting it.
+        if spot_price is None:
+            # AV's own quota may be spent even when yfinance still has data —
+            # GEX needs a spot price alongside the chain, so fall back here too.
+            spot_price = options_data.get_yfinance_spot_price(asset.symbol)
+        options_df = options_data.get_yfinance_options_snapshot(asset.symbol, spot_price=spot_price)
 
     signals = [
         hmm_regime.compute(asset.symbol, price_df),

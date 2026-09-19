@@ -15,19 +15,19 @@ news in -> impact score (0-100) -> affected assets -> quant signal bank -> ranke
 
    | Signal | Data source | Status |
    |---|---|---|
-   | HMM regime | Alpha Vantage daily prices | real |
-   | Kalman filter | Alpha Vantage daily prices | real |
+   | HMM regime | Alpha Vantage daily prices, falls back to yfinance | real |
+   | Kalman filter | Alpha Vantage daily prices, falls back to yfinance | real |
    | VWAP | Polygon intraday bars | real (needs Polygon tier); proxy fallback otherwise |
    | OFI | Polygon NBBO quotes | real (needs Polygon tier); proxy fallback otherwise |
-   | Bai-Perron breaks | Alpha Vantage daily prices (PELT approximation) | real |
+   | Bai-Perron breaks | Alpha Vantage daily prices (PELT approximation), falls back to yfinance | real |
    | Dark pool prints | Polygon trades (TRF tag) | real (needs Polygon tier); proxy fallback otherwise |
-   | GEX (aggregate) | Polygon options snapshot | real (needs Polygon options add-on); proxy fallback otherwise |
-   | Vol surface skew | Polygon options snapshot | real (needs Polygon options add-on); no fallback (returns neutral) |
-   | VRP | Alpha Vantage prices + Polygon options | realized vol always real; implied vol proxied without options data |
+   | GEX (aggregate) | Polygon options snapshot, falls back to yfinance options chain | real — yfinance covers this free, no Polygon add-on needed |
+   | Vol surface skew | Polygon options snapshot, falls back to yfinance options chain | real — same free fallback |
+   | VRP | prices (AV/yfinance) + options (Polygon/yfinance) | real — realized vol always real, implied vol now real too via the yfinance fallback |
    | VIX term structure | Polygon indices | real (needs Polygon indices add-on); realized-vol proxy fallback |
    | GPR | own news feed keyword density | proxy for the Caldara-Iacoviello index |
 
-   Every `SignalResult` carries `is_mocked` — the synthesizer down-weights proxy signals instead of hiding them.
+   Every `SignalResult` carries `is_mocked` — the synthesizer down-weights proxy signals instead of hiding them. As of tonight, **6 of 9 price/options-based signals run on real data even with Alpha Vantage's quota fully spent and no Polygon options tier** — `src/ingestion/options_data.py` pulls real strike/OI/IV from yfinance's free options chain (no key) and computes delta/gamma via Black-Scholes (yfinance doesn't ship greeks), and `market_data_client.get_yfinance_daily_prices()` is a same-ticker-format fallback for AV's stock/ETF price endpoint. VWAP/OFI/dark pool stay proxy — they need genuine intraday tick/quote data yfinance doesn't offer for free.
 
 5. **Idea synthesis** — confidence-weighted vote across signals -> `long` / `short` / `neutral` with a 0-100 conviction score and a plain-text thesis.
 6. **Trade construction** (`src/idea_generator/trade_builder.py`) — turns the idea into a `TradeSpec`: conviction gate (`take` / `watch` / `skip`), vol-targeted position size, and vol-based stop-loss/take-profit. See "Trade construction" below.
@@ -153,7 +153,7 @@ docker run --env-file .env signal-engine python examples/run_pipeline.py --news-
 
 ## Known limitations
 
-- **GEX, vol skew, VIX term structure, dark pool, OFI, VWAP** need Polygon data tiers (options add-on, indices add-on, quotes) not included in the free plan. They degrade to clearly-labeled proxies (`is_mocked=True`) rather than fail — swap in a real vendor (ORATS, CBOE DataShop, FINRA ADF, Databento) by extending `market_data_client.py` and each signal module keeps working unchanged.
+- **VIX term structure, dark pool, OFI, VWAP** need Polygon data tiers (indices add-on, quotes) not included in the free plan, or genuine intraday tick data yfinance doesn't offer for free. They degrade to clearly-labeled proxies (`is_mocked=True`) rather than fail — swap in a real vendor (ORATS, CBOE DataShop, FINRA ADF, Databento) by extending `market_data_client.py`/`options_data.py` and each signal module keeps working unchanged. (GEX and vol skew *used* to be on this list — now real via the yfinance options fallback, see the signal bank table above.)
 - **GPR** uses a news-density proxy, not the official Caldara-Iacoviello series.
 - **Asset universe** (`data/asset_universe.csv`) is a ~120-symbol seed list, not an exhaustive database — extend it as needed.
 - **The Docker image is unverified** (see Deployment above) — reviewed, not built.

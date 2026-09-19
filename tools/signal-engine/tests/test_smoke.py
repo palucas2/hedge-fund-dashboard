@@ -90,6 +90,28 @@ def test_vwap_handles_zero_volume_without_crashing():
     assert not pd.isna(result.confidence)
 
 
+def test_black_scholes_greeks_sanity():
+    from src.ingestion.options_data import black_scholes_greeks
+
+    # deep ITM call: delta near 1; deep OTM call: delta near 0
+    itm_delta, _ = black_scholes_greeks(spot=100, strike=50, iv=0.2, time_to_expiry_years=0.25, option_type="call")
+    otm_delta, _ = black_scholes_greeks(spot=100, strike=200, iv=0.2, time_to_expiry_years=0.25, option_type="call")
+    assert itm_delta > 0.9
+    assert otm_delta < 0.1
+
+    # put delta is call delta - 1 at the same strike/iv/expiry
+    call_delta, call_gamma = black_scholes_greeks(spot=100, strike=100, iv=0.2, time_to_expiry_years=0.25, option_type="call")
+    put_delta, put_gamma = black_scholes_greeks(spot=100, strike=100, iv=0.2, time_to_expiry_years=0.25, option_type="put")
+    assert abs((call_delta - 1) - put_delta) < 1e-9
+    assert abs(call_gamma - put_gamma) < 1e-9  # gamma is identical for calls and puts
+
+    # degenerate inputs don't raise or return NaN
+    delta, gamma = black_scholes_greeks(spot=100, strike=100, iv=0, time_to_expiry_years=0.25, option_type="call")
+    assert (delta, gamma) == (0.0, 0.0)
+    delta, gamma = black_scholes_greeks(spot=100, strike=100, iv=0.2, time_to_expiry_years=0, option_type="call")
+    assert (delta, gamma) == (0.0, 0.0)
+
+
 def test_synthesizer_produces_directional_idea_from_bearish_signals():
     event = make_event()
     impact = score_news(event)

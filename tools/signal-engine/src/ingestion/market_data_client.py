@@ -78,6 +78,25 @@ def get_daily_prices(symbol: str, outputsize: str = "compact") -> pd.DataFrame:
     return df
 
 
+def get_yfinance_daily_prices(symbol: str, period: str = "6mo") -> pd.DataFrame:
+    """Fallback for stocks/ETFs when AV's 25 req/day quota is spent — same
+    ticker format works on both, so no symbol remapping needed here (unlike
+    commodities/bonds/FX/crypto, which stay AV-only for now)."""
+    import yfinance as yf
+
+    try:
+        df = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
+    except Exception:
+        return pd.DataFrame()
+
+    if df.empty:
+        return df
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    df = df.rename(columns={c: c.lower() for c in df.columns})
+    return df[["open", "high", "low", "close", "volume"]].dropna()
+
+
 def get_commodity_series(commodity: str, interval: str = "monthly") -> pd.DataFrame:
     function = AV_COMMODITY_FUNCTIONS.get(commodity.lower())
     if function is None:
