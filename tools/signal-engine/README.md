@@ -22,7 +22,7 @@ news in -> impact score (0-100) -> affected assets -> quant signal bank -> ranke
    | Bai-Perron breaks | Alpha Vantage daily prices (PELT approximation), falls back to yfinance | real |
    | Dark pool prints | Polygon trades w/ TRF tag (not on free tier); Alpaca fallback covers trades but not TRF tagging | real only with a paid tier (Polygon paid, or Alpaca SIP); proxy on every free-tier combination |
    | GEX (aggregate) | Polygon options snapshot, falls back to yfinance options chain | real — yfinance covers this free, no Polygon add-on needed |
-   | Vol surface skew | Polygon options snapshot, falls back to yfinance options chain | real — same free fallback |
+   | Vol surface skew | Polygon options snapshot, falls back to yfinance options chain | real on the ~30-day expiry (never under 7 days); abstains (proxy) when yfinance quotes are stale, e.g. outside market hours, since it then reports junk implied vols (~1e-5) which are now filtered out (`MIN_VALID_IV`) |
    | VRP | prices (AV/yfinance) + options (Polygon/yfinance) | real — realized vol always real, implied vol now real too via the yfinance fallback |
    | VIX term structure | Polygon indices | real (needs Polygon indices add-on); realized-vol proxy fallback |
    | GPR | own news feed keyword density | proxy for the Caldara-Iacoviello index |

@@ -25,6 +25,14 @@ MAX_ASSETS_PER_NEWS = 5
 
 _price_cache: dict[str, pd.DataFrame] = {}
 
+# Only listed equities and ETFs have an option chain to query; FX pairs, commodity
+# series, treasury yields and crypto tickers (EURUSD, NATURAL_GAS...) only produced 404s.
+OPTIONS_ASSET_CLASSES = {AssetClass.STOCK, AssetClass.ETF}
+
+
+def options_supported(asset_class: AssetClass) -> bool:
+    return asset_class in OPTIONS_ASSET_CLASSES
+
 
 def _flat_series_to_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
@@ -82,7 +90,7 @@ def run_signals_for_asset(asset: AssetHit, price_df: pd.DataFrame, use_polygon: 
         intraday_df = market_data_client.get_intraday_aggregates(asset.symbol, from_date, to_date)
         quotes_df = market_data_client.get_quotes(asset.symbol, to_date)
         trades_df = market_data_client.get_trades(asset.symbol, to_date)
-        options_df = market_data_client.get_options_snapshot(asset.symbol)
+        options_df = market_data_client.get_options_snapshot(asset.symbol) if options_supported(asset.asset_class) else pd.DataFrame()
     else:
         # --fast mode: skip every Polygon call, signals fall straight to their proxy path
         intraday_df = pd.DataFrame()
@@ -104,7 +112,7 @@ def run_signals_for_asset(asset: AssetHit, price_df: pd.DataFrame, use_polygon: 
         if trades_df.empty:
             trades_df = alpaca_client.get_trades(asset.symbol, start_iso, end_iso)
 
-    if options_df.empty:
+    if options_df.empty and options_supported(asset.asset_class):
         # Polygon's options add-on isn't on the free tier — yfinance has a real
         # (free, no key) options chain, just missing greeks, computed here via
         # Black-Scholes. Tried regardless of --fast: unlike Polygon this isn't

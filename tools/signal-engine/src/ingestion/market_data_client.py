@@ -84,8 +84,12 @@ def get_yfinance_daily_prices(symbol: str, period: str = "6mo") -> pd.DataFrame:
     commodities/bonds/FX/crypto, which stay AV-only for now)."""
     import yfinance as yf
 
+    from src.ingestion.bounded_call import call_with_timeout
+
     try:
-        df = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
+        df = call_with_timeout(
+            lambda: yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
+        )
     except Exception:
         return pd.DataFrame()
 

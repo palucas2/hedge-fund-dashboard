@@ -12,18 +12,14 @@ rather than pyramiding into it.
 
 from __future__ import annotations
 
-import psycopg2
-
-import config
 from src.models.schemas import TradeSpec
+from src.output import db
 
 STRATEGY_TAG = "signal_engine"
 
 
 def _get_connection():
-    if not config.DATABASE_URL:
-        raise RuntimeError("DATABASE_URL not set — see .env.example")
-    return psycopg2.connect(config.DATABASE_URL, connect_timeout=10)
+    return db.get_connection()
 
 
 def _get_admin_user_id(cur) -> int | None:

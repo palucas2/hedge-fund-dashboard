@@ -14,10 +14,8 @@ way in production as it does here.
 
 from __future__ import annotations
 
-import psycopg2
-
-import config
 from src.models.schemas import TradeSpec
+from src.output import db
 
 DEDUPE_WINDOW_HOURS = 24
 
@@ -49,20 +47,23 @@ def _description(spec: TradeSpec) -> str:
 
 
 def _get_connection():
-    if not config.DATABASE_URL:
-        raise RuntimeError("DATABASE_URL not set — see .env.example")
-    return psycopg2.connect(config.DATABASE_URL, connect_timeout=10)
+    return db.get_connection()
 
 
 def _already_alerted(cur, asset: str, title: str) -> bool:
+    # DEDUPE_WINDOW_HOURS is a fixed internal constant, not user input — baked into
+    # the query text directly rather than bound as a parameter, since a parameter
+    # can't sit inside the INTERVAL string literal once bound server-side (true for
+    # the HTTP fallback connection; psycopg2 only tolerated it via client-side
+    # string substitution, which would have broken silently under that path).
     cur.execute(
-        """
+        f"""
         SELECT 1 FROM alerts
         WHERE asset = %s AND title = %s
-          AND created_at > NOW() - INTERVAL '%s hours'
+          AND created_at > NOW() - INTERVAL '{DEDUPE_WINDOW_HOURS} hours'
         LIMIT 1
         """,
-        (asset, title, DEDUPE_WINDOW_HOURS),
+        (asset, title),
     )
     return cur.fetchone() is not None
 

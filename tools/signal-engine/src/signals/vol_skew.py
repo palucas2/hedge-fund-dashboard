@@ -5,8 +5,11 @@ Polygon options snapshot; without it, falls back to a realized-vol-trend proxy."
 
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 
+from src.ingestion.expirations import pick_skew_expiration
 from src.models.schemas import SignalResult
 
 TARGET_DELTA = 0.25
@@ -24,9 +27,12 @@ def _nearest_by_delta(df: pd.DataFrame, target: float) -> pd.Series | None:
 
 
 def compute(asset: str, options_df: pd.DataFrame | None) -> SignalResult:
+    skew_expiry = None
     if options_df is not None and not options_df.empty:
-        nearest_expiry = options_df["expiration"].min()
-        chain = options_df[options_df["expiration"] == nearest_expiry].dropna(subset=["delta", "implied_volatility"])
+        skew_expiry = pick_skew_expiration(list(options_df["expiration"].unique()), date.today())
+
+    if skew_expiry is not None:
+        chain = options_df[options_df["expiration"] == skew_expiry].dropna(subset=["delta", "implied_volatility"])
 
         calls = chain[chain["type"] == "call"]
         puts = chain[chain["type"] == "put"]
@@ -45,7 +51,7 @@ def compute(asset: str, options_df: pd.DataFrame | None) -> SignalResult:
                     "skew_25d": round(skew, 4),
                     "put_iv": round(float(target_put["implied_volatility"]), 4),
                     "call_iv": round(float(target_call["implied_volatility"]), 4),
-                    "expiration": nearest_expiry,
+                    "expiration": skew_expiry,
                 },
                 direction=direction,
                 confidence=min(abs(skew) / 0.1, 1.0),

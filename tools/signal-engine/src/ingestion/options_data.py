@@ -20,8 +20,15 @@ import pandas as pd
 import yfinance as yf
 from scipy.stats import norm
 
+from src.ingestion.bounded_call import call_with_timeout
+from src.ingestion.expirations import select_expirations
+
 RISK_FREE_RATE = 0.045
 MAX_EXPIRATIONS = 4
+# yfinance reports ~1e-5 implied vols when quotes are stale (bid/ask at 0). No listed
+# equity or ETF option trades below a couple of percent annualized, so anything under
+# this is junk: dropped, so the signals abstain instead of computing on garbage.
+MIN_VALID_IV = 0.02
 
 
 def black_scholes_greeks(spot: float, strike: float, iv: float, time_to_expiry_years: float, option_type: str, r: float = RISK_FREE_RATE) -> tuple[float, float]:
@@ -38,7 +45,8 @@ def black_scholes_greeks(spot: float, strike: float, iv: float, time_to_expiry_y
 
 def get_yfinance_spot_price(symbol: str) -> float | None:
     try:
-        hist = yf.Ticker(symbol).history(period="1d")
+        ticker = yf.Ticker(symbol)
+        hist = call_with_timeout(lambda: ticker.history(period="1d"))
         if hist.empty:
             return None
         return float(hist["Close"].iloc[-1])
@@ -49,12 +57,12 @@ def get_yfinance_spot_price(symbol: str) -> float | None:
 def get_yfinance_options_snapshot(symbol: str, spot_price: float | None = None, max_expirations: int = MAX_EXPIRATIONS) -> pd.DataFrame:
     try:
         ticker = yf.Ticker(symbol)
-        expirations = ticker.options
+        expirations = call_with_timeout(lambda: ticker.options)
         if not expirations:
             return pd.DataFrame()
 
         if spot_price is None:
-            hist = ticker.history(period="1d")
+            hist = call_with_timeout(lambda: ticker.history(period="1d"))
             if hist.empty:
                 return pd.DataFrame()
             spot_price = float(hist["Close"].iloc[-1])
@@ -62,20 +70,22 @@ def get_yfinance_options_snapshot(symbol: str, spot_price: float | None = None, 
         today = datetime.now().date()
         rows = []
 
-        for expiry_str in expirations[:max_expirations]:
+        for expiry_str in select_expirations(expirations, today, max_expirations):
             expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
             time_to_expiry = max((expiry_date - today).days, 0) / 365.0
             if time_to_expiry == 0:
                 continue
 
             try:
-                chain = ticker.option_chain(expiry_str)
+                chain = call_with_timeout(lambda expiry_str=expiry_str: ticker.option_chain(expiry_str))
             except Exception:
                 continue
 
             for option_type, df in (("call", chain.calls), ("put", chain.puts)):
                 for _, row in df.iterrows():
                     iv = row.get("impliedVolatility")
+                    if iv is None or not np.isfinite(iv) or iv < MIN_VALID_IV:
+                        continue
                     delta, gamma = black_scholes_greeks(spot_price, row["strike"], iv, time_to_expiry, option_type)
                     rows.append(
                         {
